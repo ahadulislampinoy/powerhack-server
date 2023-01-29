@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -98,6 +98,64 @@ async function run() {
       const result = await allUser.findOne(query);
       if (result) {
         return res.send(result);
+      }
+    });
+
+    // Add billing data route
+    app.post("/api/add-billing", async (req, res) => {
+      const billingData = req.body;
+      const result = await allBillings.insertOne(billingData);
+      if (result.insertedId) {
+        return res.send({ message: "Your billing successfully" });
+      }
+    });
+
+    // Get all billing data route
+    app.get("/api/billing-list", async (req, res) => {
+      const page = parseInt(req.query.page) || 1;
+      const limit = 10;
+      const skip = (page - 1) * limit;
+      const billings = await allBillings
+        .find({}, { sort: { time: -1 } })
+        .skip(skip)
+        .limit(limit)
+        .toArray();
+      const count = await allBillings.estimatedDocumentCount();
+      const responseData = {
+        count: count,
+        totalBillings: billings,
+      };
+      res.send(responseData);
+    });
+
+    // Update billing data route
+    app.patch("/api/update-billing/:id", async (req, res) => {
+      const id = req.params.id;
+      const billingData = req.body;
+      console.log(billingData, "id", id);
+      const filter = { _id: ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          name: billingData?.name,
+          email: billingData?.email,
+          phone: billingData?.phone,
+          amount: billingData?.amount,
+          time: billingData?.time,
+        },
+      };
+      const result = await allBillings.updateOne(filter, updatedDoc);
+      if (result.modifiedCount) {
+        return res.send({ message: "Billing updated successfully" });
+      }
+    });
+
+    // Delete billing data route
+    app.delete("/api/delete-billing/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: ObjectId(id) };
+      const result = await allBillings.deleteOne(query);
+      if (result.deletedCount) {
+        return res.send({ message: "Billing deleted successfully" });
       }
     });
   } finally {
