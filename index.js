@@ -2,7 +2,9 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const app = express();
+const bcytpt = require("bcryptjs");
 const port = process.env.PORT || 5000;
 
 // Middleware
@@ -21,8 +23,70 @@ const client = new MongoClient(uri, {
   useUnifiedTopology: true,
   serverApi: ServerApiVersion.v1,
 });
+
+// Verify json web token
+const verifyJwt = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  jwt.verify(token, process.env.JWT_TOKEN, function (err, decoded) {
+    if (err) {
+      return res.status(403).send({ message: "Forbidden access" });
+    }
+    req.decoded = decoded;
+  });
+  next();
+};
+
 async function run() {
   try {
+    const allUser = client.db("powerhack").collection("users");
+
+    // Registration route
+    app.post("/api/registration", async (req, res) => {
+      const { name, email, password } = req.body;
+      const query = { email: email };
+      // Finding is user exist already in database or not
+      const user = await allUser.findOne(query);
+      if (user) {
+        return res.send({ message: "User already exist" });
+      }
+      // Hashing password
+      const encryptedPassword = await bcytpt.hash(password, 10);
+      const userData = {
+        name: name,
+        email: email,
+        password: encryptedPassword,
+      };
+      const result = await allUser.insertOne(userData);
+      if (result.insertedId) {
+        return res.send({ message: "User created successfully" });
+      }
+    });
+
+    // Login route
+    app.post("/api/login", async (req, res) => {
+      const { email, password } = req.body;
+      const query = { email: email };
+      // Finding is user exist already in database or not
+      const user = await allUser.findOne(query);
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+      // Comparing password
+      if (await bcytpt.compare(password, user.password)) {
+        const token = jwt.sign(user, process.env.JWT_TOKEN);
+        if (res.status(201)) {
+          return res.send({ token, message: "Login successfull!" });
+        }
+      }
+      res.status(401).send({ message: "Incorrect password" });
+    });
   } finally {
   }
 }
