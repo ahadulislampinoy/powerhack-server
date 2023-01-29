@@ -46,6 +46,7 @@ const verifyJwt = (req, res, next) => {
 async function run() {
   try {
     const allUser = client.db("powerhack").collection("users");
+    const allBillings = client.db("powerhack").collection("billings");
 
     // Registration route
     app.post("/api/registration", async (req, res) => {
@@ -65,7 +66,8 @@ async function run() {
       };
       const result = await allUser.insertOne(userData);
       if (result.insertedId) {
-        return res.send({ message: "User created successfully" });
+        const token = jwt.sign(userData, process.env.JWT_TOKEN);
+        return res.send({ token, message: "User created successfully" });
       }
     });
 
@@ -86,6 +88,17 @@ async function run() {
         }
       }
       res.status(401).send({ message: "Incorrect password" });
+    });
+
+    // Get single user data
+    app.post("/api/userData", async (req, res) => {
+      const { token } = req.body;
+      const user = jwt.verify(token, process.env.JWT_TOKEN);
+      const query = { email: user.email };
+      const result = await allUser.findOne(query);
+      if (result) {
+        return res.send(result);
+      }
     });
   } finally {
   }
