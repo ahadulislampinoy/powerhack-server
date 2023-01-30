@@ -82,7 +82,9 @@ async function run() {
       }
       // Comparing password
       if (await bcytpt.compare(password, user.password)) {
-        const token = jwt.sign(user, process.env.JWT_TOKEN);
+        const token = jwt.sign(user, process.env.JWT_TOKEN, {
+          expiresIn: "10d",
+        });
         if (res.status(201)) {
           return res.send({ token, message: "Login successfull!" });
         }
@@ -102,7 +104,7 @@ async function run() {
     });
 
     // Add billing data route
-    app.post("/api/add-billing", async (req, res) => {
+    app.post("/api/add-billing", verifyJwt, async (req, res) => {
       const billingData = req.body;
       const result = await allBillings.insertOne(billingData);
       if (result.insertedId) {
@@ -129,10 +131,9 @@ async function run() {
     });
 
     // Update billing data route
-    app.patch("/api/update-billing/:id", async (req, res) => {
+    app.patch("/api/update-billing/:id", verifyJwt, async (req, res) => {
       const id = req.params.id;
       const billingData = req.body;
-      console.log(billingData, "id", id);
       const filter = { _id: ObjectId(id) };
       const updatedDoc = {
         $set: {
@@ -150,13 +151,23 @@ async function run() {
     });
 
     // Delete billing data route
-    app.delete("/api/delete-billing/:id", async (req, res) => {
+    app.delete("/api/delete-billing/:id", verifyJwt, async (req, res) => {
       const id = req.params.id;
       const query = { _id: ObjectId(id) };
       const result = await allBillings.deleteOne(query);
       if (result.deletedCount) {
         return res.send({ message: "Billing deleted successfully" });
       }
+    });
+
+    // Get total billing amount
+    app.get("/api/paid-total", async (req, res) => {
+      const billings = await allBillings.find({}).toArray();
+      let totalAmount = 0;
+      billings.forEach((billing) => {
+        totalAmount += parseInt(billing?.amount);
+      });
+      return res.send({ totalAmount });
     });
   } finally {
   }
